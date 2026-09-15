@@ -9,9 +9,10 @@ script generation) in `PIPELINE.md`.
 The section below records the state this document was written against, on 2026-09-09.
 Since then:
 
-- **Implemented** — `src/stock_snap/news/direction.py` (PR #10). The filter now runs on
-  every daily-short and aftermarket run, through Claude Code on the subscription rather
-  than an API key. Every failure path returns no articles plus a `degraded` reason; the
+- **Implemented** — `src/stock_snap/news/direction.py` (PR #10, weekly in #13). The
+  filter now runs on every daily-short, aftermarket and weekly-review run, through Claude
+  Code on the subscription rather than an API key. Weekly narrates no news but draws up
+  to three headlines on screen, which is why it needed the same wiring. Every failure path returns no articles plus a `degraded` reason; the
   raw-headline fallback is gone. The "market sentiment" template sentence is replaced
   by a plain statement that no company news was confirmed (rule 1). `translate_to_korean`
   is deleted (rule 6). Kept headlines are logged.
