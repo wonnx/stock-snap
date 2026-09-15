@@ -193,6 +193,22 @@ def test_pipeline_runs_to_completion(module_name, mocked_externals, tmp_path, mo
     assert Path(render_target).is_absolute(), f"render got a relative path: {render_target}"
 
 
+@pytest.mark.parametrize("module_name", ["run_aftermarket", "run_weekly_review"])
+def test_on_screen_headlines_come_from_the_filter(
+    module_name, mocked_externals, tmp_path, monkeypatch
+):
+    """StockShort draws pkg.news_headlines on screen, so they must be the filtered,
+    Korean titles - not raw NewsItem.title values. The weekly pipeline narrates no
+    news and was overlooked for exactly that reason."""
+    module = importlib.import_module(module_name)
+    monkeypatch.chdir(tmp_path)
+
+    module.run()
+
+    pkg = mocked_externals["video"].call_args.args[0]
+    assert pkg.news_headlines == ["테스트 호재 기사"], pkg.news_headlines
+
+
 @pytest.mark.parametrize("module_name", PUBLISHING_PIPELINES)
 def test_every_pipeline_defines_dry_run(module_name):
     """Every pipeline the workflows pass DRY_RUN to must actually read it.
