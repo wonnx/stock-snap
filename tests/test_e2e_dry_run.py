@@ -23,6 +23,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from stock_snap.news.direction import DirectionResult  # noqa: E402
+
 # ---------------------------------------------------------------------------
 # Fixture helpers
 # ---------------------------------------------------------------------------
@@ -178,6 +180,13 @@ class TestE2EDryRun:
                 "stock_snap.media.short_video.generate_thumbnail",
                 autospec=True,
                 side_effect=_make_dummy_jpeg,
+            ),
+            patch(
+                "stock_snap.news.direction.select_direction_articles",
+                autospec=True,
+                return_value=DirectionResult(
+                    [("테스트 호재 기사", "테스트용 상세 내용입니다.")], "claude_code"
+                ),
             ),
             patch("stock_snap.utils.monitoring.init_sentry"),
             patch("stock_snap.utils.monitoring.capture_exception"),

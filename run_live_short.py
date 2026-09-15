@@ -30,14 +30,6 @@ def send_kakao_alert(text: str) -> None:
         logger.warning("Kakao alert failed: %s", e)
 
 
-def translate_to_korean(text: str) -> str:
-    """Translate English text to Korean using Google Translate."""
-    try:
-        from deep_translator import GoogleTranslator
-        return GoogleTranslator(source='en', target='ko').translate(text)
-    except Exception:
-        return text  # Fallback: return original English text
-
 def run():
     _pipeline_start = time.monotonic()
 
@@ -146,80 +138,25 @@ def run():
     except Exception as e:
         logger.warning("NewsCollector fetch failed: %s", e)
 
-    # LLM direction analysis: filter + rewrite for title/content consistency
-    def analyze_news_direction(
-        articles: list[tuple[str, str]],
-        sym: str,
-        chg: float,
-    ) -> list[tuple[str, str]]:
-        """Use Claude to select direction-consistent articles and rewrite in Korean."""
-        import os
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key or not articles:
-            return articles
-        try:
-            import anthropic
-            direction_ko = "급등(상승)" if chg > 0 else "급락(하락)"
-            articles_text = "\n".join(
-                f"{i+1}. 제목: {t}\n   내용: {d}" if d else f"{i+1}. 제목: {t}"
-                for i, (t, d) in enumerate(articles[:10])
-            )
-            prompt = (
-                f"주식 {sym}이 오늘 {chg:+.2f}% {direction_ko}했습니다.\n\n"
-                f"아래는 수집된 뉴스 기사 목록입니다:\n{articles_text}\n\n"
-                f"다음 지시를 반드시 따르세요:\n"
-                f"1. {sym} 종목과 **직접 관련된** 기사만 선별하세요. "
-                f"유가, 금리, 환율 등 {sym}과 무관한 거시경제 기사는 제외하세요.\n"
-                f"2. 기사 내용의 방향이 오늘의 주가 {direction_ko} 방향과 일치하는지 판단하세요. "
-                f"급등 종목에는 상승/호재 사유를, 급락 종목에는 하락/악재 사유를 설명하는 기사를 선별하세요.\n"
-                f"3. 위 조건을 만족하는 기사 최대 3개를 선별하세요. "
-                f"조건에 맞는 기사가 없으면 빈 배열을 반환하세요.\n"
-                f"4. 각 기사의 제목과 핵심 내용을 한국어로 간결하게 작성하세요. "
-                f"제목은 당일 주가 방향과 일치하는 톤으로 작성하세요.\n"
-                f"5. 응답은 반드시 JSON 배열만 반환하세요: "
-                f'[{{"title": "제목", "detail": "한 문장 핵심 내용"}}, ...]\n'
-                f"제목과 내용은 반드시 한국어로 작성하세요."
-            )
-            client = anthropic.Anthropic(api_key=api_key)
-            resp = client.messages.create(
-                model="claude-opus-4-6",
-                max_tokens=800,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            text = resp.content[0].text.strip()
-            # Extract JSON array
-            start = text.find("[")
-            end = text.rfind("]") + 1
-            if start >= 0 and end > start:
-                import json
-                items = json.loads(text[start:end])
-                result = [(item.get("title", ""), item.get("detail", "")) for item in items if item.get("title")]
-                if result:
-                    logger.info("LLM direction analysis: %d articles selected", len(result))
-                    return result
-        except Exception as e:
-            logger.warning("LLM news analysis failed: %s", e)
-        return articles
+    # LLM direction analysis — shared backend (Claude Code CLI on CI, API if keyed).
+    # Anything it does not return is not narrated: an unfiltered headline read as "the
+    # cause" is worse than saying no cause was established.
+    from stock_snap.news.direction import select_direction_articles
 
-    analyzed = analyze_news_direction(raw_news, symbol, change_pct)
+    direction = select_direction_articles(raw_news, symbol, change_pct)
+    if direction.degraded:
+        logger.warning("news filter degraded: %s", ", ".join(direction.degraded))
 
-    # Build final news_headlines (Korean)
     news_headlines = []
-    for title, detail in analyzed[:4]:
-        # If title is already Korean (from LLM), use as-is; otherwise translate
-        needs_translation = not any("\uAC00" <= c <= "\uD7A3" for c in title)
-        if needs_translation:
-            title_ko = translate_to_korean(title)
-            detail_ko = translate_to_korean(detail) if detail else ""
-        else:
-            title_ko = title
-            detail_ko = detail
+    for title_ko, detail_ko in direction.articles:
         if detail_ko and len(detail_ko) > 10:
             news_headlines.append(f"{title_ko}\n{detail_ko[:200]}")
         else:
             news_headlines.append(title_ko)
 
-    logger.info("Final news headlines: %d items", len(news_headlines))
+    logger.info(
+        "Final news headlines: %d items (backend=%s)", len(news_headlines), direction.backend
+    )
 
     # 4. Template-based content generation (no ANTHROPIC_API_KEY needed)
     direction = hot.direction
@@ -265,9 +202,11 @@ def run():
             items.append(f"{prefix}, {title}.")
         seg_news = intro + " ".join(items)
     else:
+        # No article survived the filter (or the filter could not run). Say so; do not
+        # manufacture a market-sentiment story the data does not support.
         seg_news = (
-            f"{tts_name}의 {'급등' if change_pct > 0 else '급락'} 배경을 살펴보겠습니다. "
-            f"{'시장 전반의 강한 매수세와 투자 심리 개선이 주요 요인으로 분석됩니다.' if change_pct > 0 else '시장 전반의 매도 압력과 투자 심리 위축이 주요 원인으로 분석됩니다.'}"
+            f"{tts_name}의 {'급등' if change_pct > 0 else '급락'}을 설명하는 "
+            f"확인된 회사 관련 뉴스는 없습니다. 차트와 지표를 중심으로 살펴보겠습니다."
         )
 
     # S3 Chart: 차트 추이 자연스럽게

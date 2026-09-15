@@ -26,6 +26,8 @@ import pytest
 REPO_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from stock_snap.news.direction import DirectionResult  # noqa: E402
+
 ENTRY_POINTS = sorted(p.name for p in REPO_ROOT.glob("run_*.py"))
 
 
@@ -151,6 +153,13 @@ def mocked_externals():
             "stock_snap.upload.media_host.publish_media",
             autospec=True,
             return_value="https://example.test/video.mp4",
+        ),
+        "news_filter": patch(
+            "stock_snap.news.direction.select_direction_articles",
+            autospec=True,
+            return_value=DirectionResult(
+                [("테스트 호재 기사", "테스트용 상세 내용입니다.")], "claude_code"
+            ),
         ),
         "reel": patch.object(instagram, "upload_reel", autospec=True, return_value=True),
         "short": patch.object(

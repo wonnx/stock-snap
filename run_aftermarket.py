@@ -124,19 +124,15 @@ def build_aftermarket_script(symbol: str, price: float, change_pct: float,
         f"마감가는 {price:,.2f}달러입니다."
     )
 
-    # 세그먼트 2: 원인 분석 (News)
+    # 세그먼트 2: 원인 분석 (News) — news_items 는 필터를 통과한 (한국어 제목, 내용) 목록
     if news_items:
-        top_news = news_items[0]
-        title_ko = getattr(top_news, "title_ko", None) or getattr(top_news, "title", "")
-        seg_news = (
-            f"{name}의 {arrow_sign} 배경을 살펴보면, "
-            f"{title_ko} "
-            f"이 핵심 요인으로 작용했습니다."
-        )
+        title_ko, _detail = news_items[0]
+        seg_news = f"{name}의 {arrow_sign} 배경을 살펴보면, {title_ko}."
     else:
+        # 필터를 통과한 기사가 없다. 없는 원인을 만들어 붙이지 않는다.
         seg_news = (
-            f"{name}의 {arrow_sign} 배경으로는 "
-            f"시장 전반적인 {arrow_sign} 심리와 섹터 모멘텀이 작용했습니다."
+            f"{name}의 {arrow_sign}을 설명하는 확인된 회사 관련 뉴스는 없습니다. "
+            f"차트와 지표를 중심으로 살펴보겠습니다."
         )
 
     # 세그먼트 3: 20거래일 흐름 (Chart)
@@ -224,9 +220,17 @@ def run():
     tech = analyzer.compute(symbol, df)
     chart_data = [round(float(v), 2) for v in df["Close"].iloc[-20:].tolist()]
 
-    # 3. 뉴스 수집
+    # 3. 뉴스 수집 + 방향 필터 (LLM). 필터를 못 돌리면 기사를 쓰지 않는다.
+    from stock_snap.news.direction import select_direction_articles
+
     collector = NewsCollector()
-    news_items = collector.fetch_for_symbol(symbol, max_items=5)
+    raw_items = collector.fetch_for_symbol(symbol, max_items=5)
+    direction = select_direction_articles(
+        [(n.title, n.summary or "") for n in raw_items], symbol, change_pct
+    )
+    if direction.degraded:
+        logger.warning("news filter degraded: %s", ", ".join(direction.degraded))
+    news_items = direction.articles
 
     # 4. TTS 스크립트 생성
     script_segments = build_aftermarket_script(
@@ -264,7 +268,7 @@ def run():
         ema_trend=tech.ema_trend,
         volume_ratio=hot.volume_ratio,
         chart_data=chart_data,
-        news_headlines=[getattr(n, "title", "") for n in news_items[:3]],
+        news_headlines=[title for title, _ in news_items[:3]],
     )
 
     # 6. 출력 경로
