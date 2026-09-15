@@ -99,6 +99,14 @@ class TestClaudeCodeBackend:
         assert run.call_args.kwargs["cwd"] != os.getcwd()
         assert "INTC" in run.call_args.kwargs["input"]
 
+    def test_kept_titles_are_logged(self, claude_backend, caplog):
+        """The log must name what was selected: the published video cannot be audited otherwise."""
+        payload = _claude_payload([{"title": "인텔 파운드리 고객 확보", "detail": "보도."}])
+        with patch.object(direction.subprocess, "run", return_value=_completed(payload)):
+            with caplog.at_level("INFO"):
+                direction.select_direction_articles(CANDIDATES, "INTC", 8.96)
+        assert "kept: 인텔 파운드리 고객 확보" in caplog.text
+
     def test_empty_selection_is_a_valid_verdict(self, claude_backend):
         with patch.object(direction.subprocess, "run", return_value=_completed(_claude_payload([]))):
             result = direction.select_direction_articles(CANDIDATES, "INTC", 8.96)
