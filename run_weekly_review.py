@@ -197,8 +197,18 @@ def run():
     chart_data = [round(float(v), 2) for v in df["Close"].iloc[-20:].tolist()]
 
     # 3. 뉴스 수집
+    # Headlines are not narrated here but they are drawn on screen (StockShort renders
+    # newsHeadlines), so they go through the same filter as the other pipelines.
+    from stock_snap.news.direction import select_direction_articles
+
     collector = NewsCollector()
-    news_items = collector.fetch_for_symbol(symbol, max_items=5)
+    raw_items = collector.fetch_for_symbol(symbol, max_items=5)
+    direction = select_direction_articles(
+        [(n.title, n.summary or "") for n in raw_items], symbol, change_pct
+    )
+    if direction.degraded:
+        logger.warning("news filter degraded: %s", ", ".join(direction.degraded))
+    news_items = direction.articles
 
     # 4. TTS 스크립트 생성
     script_segments = build_weekly_script(hero_stock, top_gainers, top_losers, market_etfs)
@@ -238,7 +248,7 @@ def run():
         ema_trend=tech.ema_trend,
         volume_ratio=1.0,
         chart_data=chart_data,
-        news_headlines=[getattr(n, "title", "") for n in news_items[:3]],
+        news_headlines=[title for title, _ in news_items[:3]],
     )
 
     # 6. 출력 경로
