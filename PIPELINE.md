@@ -44,6 +44,12 @@ same direction as the day's price action, and it has to be about this company. M
 stories (oil, rates, FX) get dropped even when they rank high in the feed. The prompt is
 in `run_live_short.py::analyze_news_direction`.
 
+That direction rule is the known weak point: it always produces an explanation, including
+on days when no company-specific cause exists, and dropping macro stories turns a sector
+or rates move into a fabricated company claim. `VERIFICATION.md` documents the rules that
+should gate this stage — session-time window, re-dated article detection, primary-source
+confirmation, and a materiality floor — along with the failure cases that motivated them.
+
 ### 5. Narration — `src/stock_snap/media/tts.py`
 
 Microsoft Edge TTS, voice `ko-KR-HyunsuMultilingualNeural`, one MP3 per scene. Sentence
