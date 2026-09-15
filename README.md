@@ -28,6 +28,12 @@ The five scenes are: hero (ticker and move), news (why it moved), chart, indicat
 and takeaway. Scene lengths come from the actual TTS duration rather than being fixed,
 so narration is never cut off mid-sentence. Total runtime lands around 100-110s.
 
+## Docs
+
+- `PIPELINE.md` — module-level detail for each stage
+- `VERIFICATION.md` — rules for attributing a price move to a cause, and for saying
+  "no company-specific cause" when that is what the evidence supports
+
 ## Setup
 
 ```bash
