@@ -39,6 +39,9 @@ jobs:
       - name: Install Python dependencies
         run: pip install -e "."
 
+      - name: Install Claude Code CLI (news filter backend)
+        run: npm install -g @anthropic-ai/claude-code
+
       - name: Install Remotion dependencies
         working-directory: remotion
         run: npm ci
@@ -60,6 +63,8 @@ jobs:
           # Release assets give the rendered video a public URL for the Graph API
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          # News filter runs through `claude -p` on the subscription; from `claude setup-token`
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: python run_aftermarket.py
 
