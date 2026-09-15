@@ -10,12 +10,13 @@ The section below records the state this document was written against, on 2026-0
 Since then:
 
 - **Implemented** — `src/stock_snap/news/direction.py` (PR #10, weekly in #13). The
-  filter now runs on every daily-short, aftermarket and weekly-review run, through Claude
-  Code on the subscription rather than an API key. Weekly narrates no news but draws up
-  to three headlines on screen, which is why it needed the same wiring. Every failure path returns no articles plus a `degraded` reason; the
-  raw-headline fallback is gone. The "market sentiment" template sentence is replaced
-  by a plain statement that no company news was confirmed (rule 1). `translate_to_korean`
-  is deleted (rule 6). Kept headlines are logged.
+  filter now runs on every daily-short, aftermarket and weekly-review run, through
+  Claude Code on the subscription rather than an API key. Weekly narrates no news but
+  draws up to three headlines on screen, which is why it needed the same wiring. Every
+  failure path returns no articles plus a `degraded` reason; the raw-headline fallback
+  is gone. The "market sentiment" template sentence is replaced by a plain statement
+  that no company news was confirmed (rule 1). `translate_to_korean` is deleted (rule
+  6). Kept headlines are logged.
 - **Not implemented** — rules 2 through 5 (session-time gate, re-dated article
   detection, primary-source check, materiality floor), and the `universe` and
   `cause_type` fields of the output contract. `DirectionResult.degraded` exists;
