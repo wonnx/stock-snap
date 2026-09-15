@@ -197,6 +197,9 @@ def select_direction_articles(
 
     if selected:
         logger.info("news filter (%s): %d of %d articles kept", backend, len(selected), len(articles))
+        # The video cannot be corrected after it goes out; leave a record of what it said.
+        for title, _detail in selected:
+            logger.info("  kept: %s", title)
     else:
         logger.info("news filter (%s): no article explains the move", backend)
     return DirectionResult(selected, backend)
