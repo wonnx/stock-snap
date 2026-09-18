@@ -203,12 +203,12 @@ def run():
 
     collector = NewsCollector()
     raw_items = collector.fetch_for_symbol(symbol, max_items=5)
-    direction = select_direction_articles(
+    news_filter = select_direction_articles(
         [(n.title, n.summary or "") for n in raw_items], symbol, change_pct
     )
-    if direction.degraded:
-        logger.warning("news filter degraded: %s", ", ".join(direction.degraded))
-    news_items = direction.articles
+    if news_filter.degraded:
+        logger.warning("news filter degraded: %s", ", ".join(news_filter.degraded))
+    news_items = news_filter.articles
 
     # 4. TTS 스크립트 생성
     script_segments = build_weekly_script(hero_stock, top_gainers, top_losers, market_etfs)
