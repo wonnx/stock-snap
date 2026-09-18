@@ -143,19 +143,19 @@ def run():
     # cause" is worse than saying no cause was established.
     from stock_snap.news.direction import select_direction_articles
 
-    direction = select_direction_articles(raw_news, symbol, change_pct)
-    if direction.degraded:
-        logger.warning("news filter degraded: %s", ", ".join(direction.degraded))
+    news_filter = select_direction_articles(raw_news, symbol, change_pct)
+    if news_filter.degraded:
+        logger.warning("news filter degraded: %s", ", ".join(news_filter.degraded))
 
     news_headlines = []
-    for title_ko, detail_ko in direction.articles:
+    for title_ko, detail_ko in news_filter.articles:
         if detail_ko and len(detail_ko) > 10:
             news_headlines.append(f"{title_ko}\n{detail_ko[:200]}")
         else:
             news_headlines.append(title_ko)
 
     logger.info(
-        "Final news headlines: %d items (backend=%s)", len(news_headlines), direction.backend
+        "Final news headlines: %d items (backend=%s)", len(news_headlines), news_filter.backend
     )
 
     # 4. Template-based content generation (no ANTHROPIC_API_KEY needed)
