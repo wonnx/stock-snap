@@ -89,3 +89,20 @@ def test_absolute_output_path_is_left_alone(pkg, tmp_path):
 
     assert ok is True
     assert created[0] == absolute.resolve()
+
+
+def test_nan_in_props_is_refused_before_spawning_the_cli(pkg, tmp_path):
+    """Python writes NaN as a bare `NaN` token, which is not JSON. Remotion rejects the
+    whole --props argument and buries the reason under an echo of the input. Catch it
+    here, name the field, and never start the process."""
+    pkg.price = float("nan")
+    created: list[Path] = []
+    with patch.object(short_video.subprocess, "run", side_effect=_fake_cli(created)) as run:
+        ok = short_video.generate_short_video(pkg, tmp_path / "v.mp4")
+    assert ok is False
+    run.assert_not_called()
+
+
+def test_non_finite_paths_names_the_offending_keys():
+    props = {"price": float("nan"), "chartData": [1.0, float("inf")], "ok": 1.5, "s": "x"}
+    assert sorted(short_video._non_finite_paths(props)) == ["chartData[1]", "price"]
