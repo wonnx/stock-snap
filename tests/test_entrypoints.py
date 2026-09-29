@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import ast
 import importlib
+import json
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -207,6 +208,29 @@ def test_on_screen_headlines_come_from_the_filter(
 
     pkg = mocked_externals["video"].call_args.args[0]
     assert pkg.news_headlines == ["테스트 호재 기사"], pkg.news_headlines
+
+
+@pytest.mark.parametrize("module_name", ["run_aftermarket", "run_weekly_review"])
+def test_content_package_survives_json_serialisation(
+    module_name, mocked_externals, tmp_path, monkeypatch
+):
+    """Whatever the pipeline puts on ContentPackage has to reach Remotion as JSON.
+
+    The render is mocked in every pipeline test, so `json.dumps(props)` inside
+    generate_short_video never runs here - which is how a DirectionResult ended up in
+    ContentPackage.direction and broke three consecutive aftermarket runs while CI
+    stayed green. This drives the real props builder over the real package.
+    """
+    from stock_snap.media.short_video import build_render_props
+
+    module = importlib.import_module(module_name)
+    monkeypatch.chdir(tmp_path)
+
+    module.run()
+
+    pkg = mocked_externals["video"].call_args.args[0]
+    assert isinstance(pkg.direction, str), f"direction is {type(pkg.direction).__name__}"
+    json.dumps(build_render_props(pkg))
 
 
 @pytest.mark.parametrize("module_name", PUBLISHING_PIPELINES)

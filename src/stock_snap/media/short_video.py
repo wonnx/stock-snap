@@ -90,6 +90,60 @@ def _tail(stream: str | bytes | None, limit: int = 500) -> str:
     return stream[-limit:]
 
 
+def build_render_props(
+    pkg: ContentPackage,
+    *,
+    audio_prop: str = "",
+    audio_segment_names: list[str] | None = None,
+    script_segments: list[str] | None = None,
+    bgm_name: str = "",
+    total_frames: int = 1350,
+    scene_durations: list[int] | None = None,
+    subtitle_timings: list[list[tuple[float, float]]] | None = None,
+) -> dict:
+    """Props handed to the Remotion composition.
+
+    Split out of generate_short_video so the JSON boundary can be tested without
+    running a render. A pipeline that puts a non-primitive on ContentPackage fails
+    here at json.dumps, and every pipeline test mocks the render, so nothing else
+    exercises it.
+    """
+    audio_segment_names = audio_segment_names or []
+    return {
+        "symbol": pkg.symbol,
+        "price": pkg.price,
+        "changePct": pkg.change_pct,
+        "direction": pkg.direction,
+        "cardTitle": pkg.card_title,
+        "cardSubtitle": pkg.card_subtitle,
+        "script": pkg.script,
+        "audioPath": audio_prop,
+        # Quant analysis data
+        "rsi": pkg.rsi,
+        "macd": pkg.macd,
+        "macdSignal": pkg.macd_signal,
+        "volumeRatio": pkg.volume_ratio,
+        "bbPosition": pkg.bb_position,
+        "emaTrend": pkg.ema_trend,
+        "quantSummary": pkg.quant_summary,
+        "chartData": pkg.chart_data,
+        "companyNameKo": getattr(pkg, "company_name_ko", ""),
+        "newsHeadlines": getattr(pkg, "news_headlines", []),
+        # Scene-synced audio and subtitles
+        "audioSegments": audio_segment_names,
+        "scriptSegments": script_segments or [],
+        # BGM
+        "bgmPath": bgm_name,
+        # Dynamic duration
+        "totalFrames": total_frames,
+        "sceneDurations": scene_durations or [],
+        # Subtitle timing data: [segment][sentence][start_sec, end_sec]
+        "subtitleTimings": [
+            [[s, e] for s, e in seg] for seg in subtitle_timings
+        ] if subtitle_timings else [],
+    }
+
+
 def generate_thumbnail(pkg: ContentPackage, output_path: Path) -> bool:
     """Render a still thumbnail image via Remotion CLI. Returns True on success."""
     if not REMOTION_DIR.exists():
@@ -207,39 +261,17 @@ def generate_short_video(
             shutil.copy2(src, dest)
             logger.info("Copied BGM to remotion/public/%s", bgm_name)
 
-    props = {
-        "symbol": pkg.symbol,
-        "price": pkg.price,
-        "changePct": pkg.change_pct,
-        "direction": pkg.direction,
-        "cardTitle": pkg.card_title,
-        "cardSubtitle": pkg.card_subtitle,
-        "script": pkg.script,
-        "audioPath": audio_prop,
-        # Quant analysis data
-        "rsi": pkg.rsi,
-        "macd": pkg.macd,
-        "macdSignal": pkg.macd_signal,
-        "volumeRatio": pkg.volume_ratio,
-        "bbPosition": pkg.bb_position,
-        "emaTrend": pkg.ema_trend,
-        "quantSummary": pkg.quant_summary,
-        "chartData": pkg.chart_data,
-        "companyNameKo": getattr(pkg, "company_name_ko", ""),
-        "newsHeadlines": getattr(pkg, "news_headlines", []),
-        # Scene-synced audio and subtitles
-        "audioSegments": audio_segment_names,
-        "scriptSegments": script_segments or [],
-        # BGM
-        "bgmPath": bgm_name,
-        # Dynamic duration
-        "totalFrames": total_frames,
-        "sceneDurations": scene_durations or [],
-        # Subtitle timing data: [segment][sentence][start_sec, end_sec]
-        "subtitleTimings": [
-            [[s, e] for s, e in seg] for seg in subtitle_timings
-        ] if subtitle_timings else [],
-    }
+    props = build_render_props(
+        pkg,
+        audio_prop=audio_prop,
+        audio_segment_names=audio_segment_names,
+        script_segments=script_segments,
+        bgm_name=bgm_name,
+        total_frames=total_frames,
+        scene_durations=scene_durations,
+        subtitle_timings=subtitle_timings,
+    )
+
 
     cmd = [
         "npx", "remotion", "render",
