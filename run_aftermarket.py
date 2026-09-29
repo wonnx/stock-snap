@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -55,6 +56,8 @@ def select_aftermarket_hot_stock():
             if not prev_close or prev_close <= 0:
                 return None
             price = float(row["Close"])
+            if not math.isfinite(price):
+                return None
             volume = int(row["Volume"])
             change_pct = (price - prev_close) / prev_close * 100
             # Combine price change magnitude with volume activity

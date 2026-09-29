@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -50,9 +51,14 @@ def fetch_weekly_data() -> list[dict]:
             hist = tk.history(period="5d", interval="1d")
             if len(hist) < 2:
                 return None
+            # Drop sessions yfinance returned without prices (a pre-market "today" row,
+            # or a gap) before reading the ends of the week. NaN passes `<= 0` checks.
+            hist = hist.dropna(subset=["Open", "Close"])
+            if len(hist) < 2:
+                return None
             week_start = float(hist.iloc[0]["Open"])
             week_end = float(hist.iloc[-1]["Close"])
-            if week_start <= 0:
+            if not math.isfinite(week_start) or not math.isfinite(week_end) or week_start <= 0:
                 return None
             change_pct = (week_end - week_start) / week_start * 100
             avg_volume = int(hist["Volume"].mean())

@@ -81,6 +81,35 @@ def scene_timing(segment_paths: list[Path] | None) -> tuple[list[int], int]:
     return scene_frames, total_frames
 
 
+def _non_finite_paths(value: object, prefix: str = "") -> list[str]:
+    """Key paths of any NaN/Infinity inside *value*.
+
+    Python's json.dumps writes NaN as the bare token `NaN`, which is not JSON. Remotion
+    rejects the whole --props argument with "neither valid JSON nor a file path", and
+    the message that names the actual problem is buried under an echo of the props.
+    """
+    out: list[str] = []
+    if isinstance(value, float):
+        if value != value or value in (float("inf"), float("-inf")):
+            out.append(prefix or "<root>")
+    elif isinstance(value, dict):
+        for k, v in value.items():
+            out.extend(_non_finite_paths(v, f"{prefix}.{k}" if prefix else str(k)))
+    elif isinstance(value, (list, tuple)):
+        for i, v in enumerate(value):
+            out.extend(_non_finite_paths(v, f"{prefix}[{i}]"))
+    return out
+
+
+def _stderr_head(stream: str | bytes | None, limit: int = 700) -> str:
+    """First *limit* characters: the CLI prints its error before echoing the input."""
+    if not stream:
+        return "(no output captured)"
+    if isinstance(stream, bytes):
+        stream = stream.decode("utf-8", errors="replace")
+    return stream[:limit]
+
+
 def _tail(stream: str | bytes | None, limit: int = 500) -> str:
     """Last *limit* characters of a captured stream, for timeout diagnostics."""
     if not stream:
@@ -170,11 +199,16 @@ def generate_thumbnail(pkg: ContentPackage, output_path: Path) -> bool:
         "companyNameKo": getattr(pkg, "company_name_ko", ""),
     }
 
+    bad = _non_finite_paths(props)
+    if bad:
+        logger.error("Thumbnail props contain NaN/Infinity, refusing to render: %s", bad)
+        return False
+
     cmd = [
         "npx", "remotion", "still",
         "StockThumbnail",
         str(output_path),
-        "--props", json.dumps(props),
+        "--props", json.dumps(props, allow_nan=False),
         "--image-format", "jpeg",
         "--jpeg-quality", "92",
         "--scale", "2",
@@ -191,7 +225,7 @@ def generate_thumbnail(pkg: ContentPackage, output_path: Path) -> bool:
             timeout=STILL_TIMEOUT_SECS,
         )
         if result.returncode != 0:
-            logger.error("Remotion still render failed: %s", result.stderr[-500:])
+            logger.error("Remotion still render failed: %s", _stderr_head(result.stderr))
             return False
         return output_path.exists()
     except FileNotFoundError:
@@ -273,11 +307,16 @@ def generate_short_video(
     )
 
 
+    bad = _non_finite_paths(props)
+    if bad:
+        logger.error("Render props contain NaN/Infinity, refusing to render: %s", bad)
+        return False
+
     cmd = [
         "npx", "remotion", "render",
         "StockShort",
         str(output_path),
-        "--props", json.dumps(props),
+        "--props", json.dumps(props, allow_nan=False),
         "--codec", "h264",
         "--crf", "10",
         "--scale", "2",
@@ -297,7 +336,7 @@ def generate_short_video(
             timeout=RENDER_TIMEOUT_SECS,
         )
         if result.returncode != 0:
-            logger.error("Remotion render failed: %s", result.stderr[-500:])
+            logger.error("Remotion render failed: %s", _stderr_head(result.stderr))
             return False
         logger.info("Remotion render finished in %.1fs", time.monotonic() - started)
         return output_path.exists()

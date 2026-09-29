@@ -292,3 +292,32 @@ def test_dry_run_publishes_nothing(module_name, mocked_externals, tmp_path, monk
     mocked_externals["reel"].assert_not_called()
     # YouTube is told rather than skipped, so assert it was told.
     assert mocked_externals["short"].call_args.kwargs.get("dry_run") is True
+
+
+def test_weekly_fetch_drops_sessions_without_prices(monkeypatch):
+    """A NaN row from yfinance made AAPL the weekly "hero" at +nan% and the render died
+    on invalid JSON. `week_start <= 0` never catches NaN."""
+    import numpy as np
+    import pandas as pd
+
+    module = importlib.import_module("run_weekly_review")
+
+    def fake_history(*_a, **_k):
+        return pd.DataFrame(
+            {
+                "Open": [100.0, 101.0, 102.0, 103.0, np.nan],
+                "Close": [100.5, 101.5, 102.5, 103.5, np.nan],
+                "Volume": [1e6, 1e6, 1e6, 1e6, np.nan],
+            }
+        )
+
+    ticker = MagicMock()
+    ticker.history.side_effect = fake_history
+    monkeypatch.setattr(module, "UNIVERSE", ["AAPL"])
+    with patch("yfinance.Ticker", return_value=ticker):
+        rows = module.fetch_weekly_data()
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert all(np.isfinite(row[k]) for k in ("price", "week_start", "change_pct"))
+    assert row["change_pct"] == pytest.approx((103.5 - 100.0) / 100.0 * 100, rel=1e-6)
