@@ -99,13 +99,17 @@ two together would post the same content twice.
 | `aftermarket.yml` | `15 21 * * 1-5` | weekdays 06:15 next day |
 | `weekly-review.yml` | `30 21 * * 5` | Saturday 06:30 |
 
+Scheduled runs are render-only at the moment: the video is built and attached to the
+`media` release, but nothing is posted. Posting is a manual, opt-in dispatch.
+
 ```bash
-gh workflow run daily-short.yml -f dry_run=true   # manual, no upload
+gh workflow run daily-short.yml -f publish=true   # render and post
+gh workflow run daily-short.yml                   # render only, same as the schedule
 gh workflow list --all                            # check they are still enabled
 ```
 
 GitHub disables scheduled workflows after 60 days without repository activity, so the
-second command is worth running if posts stop appearing.
+last command is worth running if runs stop appearing.
 
 ## Operational notes
 

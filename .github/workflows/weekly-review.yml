@@ -6,8 +6,8 @@ on:
     - cron: "30 21 * * 5"
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: "Dry run (skip upload)"
+      publish:
+        description: "Post the result to Instagram/YouTube (scheduled runs never do)"
         required: false
         default: "false"
 
@@ -65,7 +65,9 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           # News filter runs through `claude -p` on the subscription; from `claude setup-token`
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          # Scheduled runs render and host the video but post nothing. Posting is
+          # opt-in from a manual dispatch: gh workflow run weekly-review.yml -f publish=true
+          DRY_RUN: ${{ github.event.inputs.publish != 'true' }}
         run: python run_weekly_review.py
 
       - name: Upload artifacts on failure
